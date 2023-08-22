@@ -8,52 +8,53 @@ import pickle
 from matplotlib import pyplot as plt
 
 import hmax
+calculate = False
+if calculate:
+    # Initialize the model with the universal patch set
+    print('Constructing model')
+    model = hmax.HMAX('./universal_patch_set.mat')
 
-# Initialize the model with the universal patch set
-print('Constructing model')
-model = hmax.HMAX('./universal_patch_set.mat')
+    # A folder with example images
+    example_images = datasets.ImageFolder(
+        './presented_stimuli/',
+        transform=transforms.Compose([
+            transforms.Grayscale(),
+            transforms.Resize((375, 375)),  # Resize all images to (375, 375)
+            transforms.ToTensor(),
+            transforms.Lambda(lambda x: x * 255),
+        ])
+    )
 
-# A folder with example images
-example_images = datasets.ImageFolder(
-    './presented_stimuli/',
-    transform=transforms.Compose([
-        transforms.Grayscale(),
-        transforms.Resize((375, 375)),  # Resize all images to (375, 375)
-        transforms.ToTensor(),
-        transforms.Lambda(lambda x: x * 255),
-    ])
-)
+    # A dataloader that will run through all example images in one batch
+    dataloader = DataLoader(example_images)
 
-# A dataloader that will run through all example images in one batch
-dataloader = DataLoader(example_images)
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    # Run the model on the example images
+    print('Running model on', device)
+    it = 0
+    c1_list = []
+    model = model.to(device)
+    for X, y in dataloader:
+        c1 = model.get_c1_layers(X.to(device))
+        c1_list.append(c1)
+        print(it)
+        it += 1
+    flatten_list = [j for sub in c1_list for j in sub]
+    split_list = [flatten_list[i:i + 8] for i in range(0, len(flatten_list), 8)]
 
-# Run the model on the example images
-print('Running model on', device)
-it = 0
-c1_list = []
-model = model.to(device)
-for X, y in dataloader:
-    c1 = model.get_c1_layers(X.to(device))
-    c1_list.append(c1)
-    print(it)
-    it += 1
-flatten_list = [j for sub in c1_list for j in sub]
-split_list = [flatten_list[i:i + 8] for i in range(0, len(flatten_list), 8)]
+    parent_dir = './presented_stimuli/'
+    images = []
+    for subdir, dirs, files in os.walk(parent_dir):
+        images.extend(files)
+    print(len(images))
+    print(len(split_list))
 
-parent_dir = './presented_stimuli/'
-images = []
-for subdir, dirs, files in os.walk(parent_dir):
-    images.extend(files)
-print(len(images))
-print(len(split_list))
-
-output = dict(zip(images, split_list))
-print('Saving output of all layers to: output.pkl')
-with open('output.pkl', 'wb') as f:
-    pickle.dump(output, f)
-print('[done]')
+    output = dict(zip(images, split_list))
+    print('Saving output of all layers to: output.pkl')
+    with open('output.pkl', 'wb') as f:
+        pickle.dump(output, f)
+    print('[done]')
 
 '''''
 def show_images(c1_layer):
@@ -93,7 +94,7 @@ def calculate_score(alldata):
 
 
 with (open("output.pkl", "rb")) as openfile:
-    complexity_classes = 5
+    complexity_classes = 3
     while True:
         try:
             output = pickle.load(openfile)
@@ -103,30 +104,43 @@ with (open("output.pkl", "rb")) as openfile:
             with open('scores.pkl', 'wb') as f:
                 pickle.dump(score_dict, f)
             sorted_scores = sorted(score_dict.items(), key=lambda x: x[1])
+            #a = np.array([22, 87, 5, 43, 56, 73, 55, 54, 11, 20, 51, 5, 79, 31, 27])
+
+            plt.hist(score, bins =[0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1])
+            plt.title("histogram")
+            plt.savefig("histogram")
+            plt.show()
+            break
+            """
+            # split into even parts
             split_scores = [sorted_scores[i:i + len(sorted_scores) // complexity_classes] for i in
                             range(0, len(sorted_scores) - len(sorted_scores) % complexity_classes,
                                   len(sorted_scores) // complexity_classes)]  # split the sorted dict into 5 (almost) even parts
-            ''''
-            split_values = [0.2, 0.4, 0.6, 0.8, 1]  # split scores into 5 parts
-            split_scores = []
+            """
 
+            # split by values
+            split_values = [0, 0.33, 0.66, 1]  # split scores into 3 parts
+
+            split_scores = []
             for i in range(len(split_values)):
-                if i == 0:
-                    lower_bound = 0
-                else:
-                    lower_bound = split_values[i - 1]
-                upper_bound = split_values[i]
-                sublist = [item for item in sorted_scores if lower_bound < item[1] <= upper_bound]
-                split_scores.append(sublist)
-            '''
+                if i != 0:
+                    sublist = [item for item in sorted_scores if split_values[i] > item[1] > split_values[i - 1]]
+                    split_scores.append(sublist)
+
+
             if len(sorted_scores) % complexity_classes > 0:  # put the leftover scores into the last label
-                split_scores[-1].extend(sorted_scores[-len(sorted_scores) % complexity_classes:])
-            labels = [i for i in range(1, complexity_classes + 1)]
+                split_scores[-1].extend(sorted_scores[-(len(sorted_scores) % complexity_classes):])
+
+            labels = [i for i in range(complexity_classes)]
             sublist_dict = {labels[i]: [key for key, _ in sublist] for i, sublist in
                             enumerate(split_scores)}  # new dict with labels as key and filenames as value
             print(sublist_dict)
+            print(len(split_scores[0]))
+            print(len(split_scores[1]))
+            print(len(split_scores[2]))
             with open('labels.pkl', 'wb') as f:
                 pickle.dump(sublist_dict, f)
+
         except EOFError:
             break
 
