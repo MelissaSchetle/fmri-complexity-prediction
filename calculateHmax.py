@@ -1,13 +1,12 @@
 import os
-
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 import pickle
 from matplotlib import pyplot as plt
-
 import hmax
+
 calculate = False
 if calculate:
     # Initialize the model with the universal patch set
@@ -56,21 +55,6 @@ if calculate:
         pickle.dump(output, f)
     print('[done]')
 
-'''''
-def show_images(c1_layer):
-    fig, axs = plt.subplots(nrows=4, ncols=8)
-    i = 0
-    img_number = 3
-    for data in c1_layer:
-        axs[0, i].imshow(data[img_number, 0, :, :], interpolation='none')
-        axs[1, i].imshow(data[img_number, 1, :, :], interpolation='none')
-        axs[2, i].imshow(data[img_number, 2, :, :], interpolation='none')
-        axs[3, i].imshow(data[img_number, 3, :, :], interpolation='none')
-        i = i+1
-
-    plt.show()
-'''
-
 def calculate_score(alldata):
     img_numb = len(alldata.items())
     avg = np.zeros((img_numb, 4))  # shape: image_amount, rotation_amount
@@ -92,6 +76,10 @@ def calculate_score(alldata):
     score = (score - np.min(score)) / (np.max(score) - np.min(score))  # normalize score
     return score
 
+def show_distribution(score):
+    plt.hist(score)
+    plt.title("histogram")
+    plt.show()
 
 with (open("output.pkl", "rb")) as openfile:
     complexity_classes = 3
@@ -104,20 +92,15 @@ with (open("output.pkl", "rb")) as openfile:
             with open('scores.pkl', 'wb') as f:
                 pickle.dump(score_dict, f)
             sorted_scores = sorted(score_dict.items(), key=lambda x: x[1])
-            #a = np.array([22, 87, 5, 43, 56, 73, 55, 54, 11, 20, 51, 5, 79, 31, 27])
 
-            plt.hist(score, bins =[0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1])
-            plt.title("histogram")
-            plt.savefig("histogram")
-            plt.show()
-            break
-            """
+            #show_distribution(score)
+
             # split into even parts
             split_scores = [sorted_scores[i:i + len(sorted_scores) // complexity_classes] for i in
                             range(0, len(sorted_scores) - len(sorted_scores) % complexity_classes,
                                   len(sorted_scores) // complexity_classes)]  # split the sorted dict into 5 (almost) even parts
-            """
 
+            """
             # split by values
             split_values = [0, 0.33, 0.66, 1]  # split scores into 3 parts
 
@@ -126,7 +109,7 @@ with (open("output.pkl", "rb")) as openfile:
                 if i != 0:
                     sublist = [item for item in sorted_scores if split_values[i] > item[1] > split_values[i - 1]]
                     split_scores.append(sublist)
-
+            """
 
             if len(sorted_scores) % complexity_classes > 0:  # put the leftover scores into the last label
                 split_scores[-1].extend(sorted_scores[-(len(sorted_scores) % complexity_classes):])
@@ -143,4 +126,5 @@ with (open("output.pkl", "rb")) as openfile:
 
         except EOFError:
             break
+
 
