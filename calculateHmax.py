@@ -31,27 +31,23 @@ if calculate:
 
     # Run the model on the example images
     print('Running model on', device)
-    it = 0
     c1_list = []
     model = model.to(device)
     for X, y in dataloader:
         c1 = model.get_c1_layers(X.to(device))
         c1_list.append(c1)
-        print(it)
-        it += 1
-    flatten_list = [j for sub in c1_list for j in sub]
-    split_list = [flatten_list[i:i + 8] for i in range(0, len(flatten_list), 8)]
+    #flatten_list = [j for sub in c1_list for j in sub]
+    split_list=c1_list
+    #split_list = [flatten_list[i:i + 8] for i in range(0, len(flatten_list), 8)]
 
     parent_dir = './presented_stimuli/'
     images = []
-    for subdir, dirs, files in os.walk(parent_dir):
-        images.extend(files)
-    print(len(images))
-    print(len(split_list))
+    for subdir, dirs, files in sorted(os.walk(parent_dir)):
+        print(files)
+        images.extend(sorted(files))
 
     output = dict(zip(images, split_list))
-    print('Saving output of all layers to: output.pkl')
-    with open('output.pkl', 'wb') as f:
+    with open('output_sorted.pkl', 'wb') as f:
         pickle.dump(output, f)
     print('[done]')
 
@@ -76,55 +72,44 @@ def calculate_score(alldata):
     score = (score - np.min(score)) / (np.max(score) - np.min(score))  # normalize score
     return score
 
-def show_distribution(score):
+def show_distribution(score, border1, border2): # creates histogram for the complexity classes
     plt.hist(score)
-    plt.title("histogram")
+    plt.axvline(border1, color='orange')
+    plt.axvline(border2, color='orange')
+    plt.ylabel("Number of stimuli")
+    plt.xlabel("Complexity score")
     plt.show()
 
-with (open("output.pkl", "rb")) as openfile:
-    complexity_classes = 3
-    while True:
-        try:
-            output = pickle.load(openfile)
-            score = calculate_score(output)
-            image_names = output.keys()
-            score_dict = dict(zip(image_names, score))
-            with open('scores.pkl', 'wb') as f:
-                pickle.dump(score_dict, f)
-            sorted_scores = sorted(score_dict.items(), key=lambda x: x[1])
+def get_classes():
+    #with (open("output_sorted.pkl", "rb")) as openfile:
+    with (open("output.pkl", "rb")) as openfile:
+        complexity_classes = 3
+        while True:
+            try:
+                output = pickle.load(openfile)
+                score = calculate_score(output)
+                image_names = output.keys()
+                score_dict = dict(zip(image_names, score))
+                sorted_scores = sorted(score_dict.items(), key=lambda x: x[1])
+                # split into even parts
+                split_scores = [sorted_scores[i:i + len(sorted_scores) // complexity_classes] for i in
+                                range(0, len(sorted_scores) - len(sorted_scores) % complexity_classes,
+                                      len(sorted_scores) // complexity_classes)]  # split the sorted dict into 3 (almost) even parts
+                print(split_scores[0][-1], split_scores[1][-1])
+                show_distribution(score, split_scores[0][-1][1], split_scores[1][-1][1])
 
-            #show_distribution(score)
+                if len(sorted_scores) % complexity_classes > 0:  # put the leftover scores into the last label
+                    split_scores[-1].extend(sorted_scores[-(len(sorted_scores) % complexity_classes):])
 
-            # split into even parts
-            split_scores = [sorted_scores[i:i + len(sorted_scores) // complexity_classes] for i in
-                            range(0, len(sorted_scores) - len(sorted_scores) % complexity_classes,
-                                  len(sorted_scores) // complexity_classes)]  # split the sorted dict into 5 (almost) even parts
+                labels = [i for i in range(complexity_classes)]
+                sublist_dict = {labels[i]: [key for key, _ in sublist] for i, sublist in
+                                enumerate(split_scores)}  # new dict with labels as key and filenames as value
 
-            """
-            # split by values
-            split_values = [0, 0.33, 0.66, 1]  # split scores into 3 parts
+                with open('labels_sorted.pkl', 'wb') as f:
+                    pickle.dump(sublist_dict, f)
 
-            split_scores = []
-            for i in range(len(split_values)):
-                if i != 0:
-                    sublist = [item for item in sorted_scores if split_values[i] > item[1] > split_values[i - 1]]
-                    split_scores.append(sublist)
-            """
-
-            if len(sorted_scores) % complexity_classes > 0:  # put the leftover scores into the last label
-                split_scores[-1].extend(sorted_scores[-(len(sorted_scores) % complexity_classes):])
-
-            labels = [i for i in range(complexity_classes)]
-            sublist_dict = {labels[i]: [key for key, _ in sublist] for i, sublist in
-                            enumerate(split_scores)}  # new dict with labels as key and filenames as value
-            print(sublist_dict)
-            print(len(split_scores[0]))
-            print(len(split_scores[1]))
-            print(len(split_scores[2]))
-            with open('labels.pkl', 'wb') as f:
-                pickle.dump(sublist_dict, f)
-
-        except EOFError:
-            break
+            except EOFError:
+                break
 
 
+get_classes()

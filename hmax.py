@@ -8,7 +8,7 @@ about HMAX, check:
 The S and C units of the HMAX model can almost be mapped directly onto
 TorchVision's Conv2d and MaxPool2d layers, where channels are used to store the
 filters for different orientations. However, HMAX also implements multiple
-scales, which doesn't map nicely onto the existing TorchVision functionality.
+scales, which doesn't.py map nicely onto the existing TorchVision functionality.
 Therefore, each scale has its own Conv2d layer, which are executed in parallel.
 
 Here is a schematic overview of the network architecture:
